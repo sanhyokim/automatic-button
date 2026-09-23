@@ -22,6 +22,9 @@ def main() -> None:
     # DPI対応は Tk や pyautogui を読み込む前に行う
     enable_dpi_awareness()
 
+    from app import capture  # OpenCV の環境変数を先に設定する
+    del capture
+
     import tkinter as tk
 
     from app.config import default_config_path, load_config

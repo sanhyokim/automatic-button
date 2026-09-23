@@ -1,14 +1,20 @@
 """キャプチャーカードの取り込みスレッドと最新フレームの保持。"""
 from __future__ import annotations
 
+import os
 import threading
 import time
 from typing import Optional
 
+# Media Foundation(MSMF)の起動が遅い問題を避ける。cv2 を読み込む前に設定する
+os.environ.setdefault("OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS", "0")
+# 開けない方式を試したときの警告を出さない
+os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
+
 import cv2
 import numpy as np
 
-OPEN_FIRST_FRAME_TIMEOUT = 5.0  # 開いた直後に最初のフレームを待つ秒数
+OPEN_FIRST_FRAME_TIMEOUT = 20.0  # 開いた直後に最初のフレームを待つ秒数
 STALE_FRAME_SEC = 2.0  # この秒数以上更新のないフレームは使わない
 
 

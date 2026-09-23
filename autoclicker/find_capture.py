@@ -7,7 +7,14 @@
 """
 from pathlib import Path
 
-import cv2
+import os  # noqa: E402
+
+# Media Foundation(MSMF)の起動が遅い問題を避ける。cv2 を読み込む前に設定する
+os.environ.setdefault("OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS", "0")
+# 開けない方式を試したときの警告を出さない
+os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
+
+import cv2  # noqa: E402
 
 OUT = Path(__file__).resolve().parent
 APIS = [(name, getattr(cv2, name)) for name in ("CAP_DSHOW", "CAP_MSMF") if hasattr(cv2, name)]
