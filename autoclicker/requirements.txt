@@ -1,0 +1,7 @@
+opencv-python
+numpy
+rapidocr
+onnxruntime
+pyautogui
+pynput
+pytest
