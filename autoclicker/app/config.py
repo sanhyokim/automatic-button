@@ -20,7 +20,6 @@ DEFAULT_CONFIG: dict = {
         # "screen" = このPCの画面を直接取り込む(キャプチャーカードを占有しない)
         # "card"   = キャプチャーカードから取り込む
         "source": "screen",
-        "monitor": 1,
         "device_index": 0,
         "width": 1920,
         "height": 1080,

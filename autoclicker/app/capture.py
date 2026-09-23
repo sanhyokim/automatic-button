@@ -131,6 +131,19 @@ class FrameGrabber:
             self._frame = None
 
 
+def pick_primary(monitors: list) -> Optional[dict]:
+    """mss のモニター一覧から、Windows のメインディスプレイ(左上が 0,0)を選ぶ。
+
+    mss の monitors[1] はメインディスプレイとは限らない(2画面の環境で別の画面になることがある)。
+    範囲の設定とクリックの座標はメインディスプレイ基準なので、取り込みもそれに合わせる。
+    """
+    screens = monitors[1:]  # monitors[0] は全画面を合わせた領域
+    for mon in screens:
+        if mon.get("left") == 0 and mon.get("top") == 0:
+            return mon
+    return screens[0] if screens else None
+
+
 class ScreenGrabber:
     """このPCの画面を直接取り込む(キャプチャーカードを使わない)。
 
@@ -138,12 +151,12 @@ class ScreenGrabber:
     キャプチャーカードを使うほかのアプリと同時に動かせる。
     """
 
-    def __init__(self, width: int, height: int, monitor: int = 1):
+    def __init__(self, width: int, height: int):
         self.width = width
         self.height = height
-        self.monitor = monitor  # mss のモニター番号(1 = メインモニター)
         self._local = threading.local()
         self._opened = False
+        self._mon: Optional[dict] = None
 
     def _sct(self):
         # mss のインスタンスは作ったスレッドでだけ使う
@@ -161,9 +174,10 @@ class ScreenGrabber:
             monitors = sct.monitors
         except Exception as e:
             raise CaptureError(f"画面を取り込めません: {e}") from e
-        if self.monitor >= len(monitors):
-            raise CaptureError(f"モニター{self.monitor}が見つかりません")
-        mon = monitors[self.monitor]
+        mon = pick_primary(monitors)
+        if mon is None:
+            raise CaptureError("メインディスプレイが見つかりません")
+        self._mon = {k: mon[k] for k in ("left", "top", "width", "height")}
         w, h = mon["width"], mon["height"]
         if (w, h) != (self.width, self.height):
             raise CaptureError(
@@ -178,7 +192,7 @@ class ScreenGrabber:
             return None
         try:
             sct = self._sct()
-            shot = sct.grab(sct.monitors[self.monitor])
+            shot = sct.grab(self._mon)
             return cv2.cvtColor(np.asarray(shot), cv2.COLOR_BGRA2BGR)
         except Exception:
             return None
@@ -199,4 +213,4 @@ def make_grabber(cfg: dict):
     c = cfg["capture"]
     if c.get("source", "screen") == "card":
         return FrameGrabber(c["device_index"], c["width"], c["height"], c["fps"], c.get("fourcc", ""))
-    return ScreenGrabber(c["width"], c["height"], c.get("monitor", 1))
+    return ScreenGrabber(c["width"], c["height"])

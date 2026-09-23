@@ -185,3 +185,14 @@ def test_capture_source_default_and_invalid(tmp_path):
     assert isinstance(make_grabber(cfg), FrameGrabber)
     path.write_text(json.dumps({"capture": {"source": "usb"}}), encoding="utf-8")
     assert load_config(path)[0]["capture"]["source"] == "screen"
+
+
+def test_pick_primary_monitor():
+    from app.capture import pick_primary
+
+    allmon = {"left": -1920, "top": 0, "width": 3840, "height": 1080}
+    second = {"left": -1920, "top": 0, "width": 1920, "height": 1080}
+    primary = {"left": 0, "top": 0, "width": 1920, "height": 1080}
+    assert pick_primary([allmon, second, primary]) is primary  # 1番目がメインでない場合
+    assert pick_primary([allmon, primary, second]) is primary
+    assert pick_primary([allmon]) is None
