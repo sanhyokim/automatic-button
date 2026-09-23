@@ -354,7 +354,6 @@ class Engine:
 
 
 def _default_grabber(cfg: dict):
-    from .capture import FrameGrabber
+    from .capture import make_grabber
 
-    c = cfg["capture"]
-    return FrameGrabber(c["device_index"], c["width"], c["height"], c["fps"], c.get("fourcc", ""))
+    return make_grabber(cfg)

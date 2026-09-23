@@ -17,6 +17,10 @@ CONFIG_FILENAME = "config.json"
 DEFAULT_CONFIG: dict = {
     "version": 1,
     "capture": {
+        # "screen" = このPCの画面を直接取り込む(キャプチャーカードを占有しない)
+        # "card"   = キャプチャーカードから取り込む
+        "source": "screen",
+        "monitor": 1,
         "device_index": 0,
         "width": 1920,
         "height": 1080,
@@ -144,6 +148,8 @@ def normalize_config(loaded: dict) -> tuple[dict, list[str]]:
     cfg["rules"] = rules
     if cfg.get("number_format") not in NUMBER_FORMATS:
         cfg["number_format"] = "integer"
+    if cfg["capture"].get("source") not in ("screen", "card"):
+        cfg["capture"]["source"] = "screen"
     if cfg.get("fallback_rule_id") is not None and not isinstance(cfg["fallback_rule_id"], str):
         cfg["fallback_rule_id"] = None
     return cfg, messages
@@ -253,6 +259,8 @@ def validate_settings(cfg: dict) -> list[str]:
     if not isinstance(det.get("ocr_use_det"), bool):
         errors.append("ocr_use_det が true/false ではありません")
 
+    if cfg.get("capture", {}).get("source") not in ("screen", "card"):
+        errors.append("取り込み方法が正しくありません")
     dev = cfg.get("capture", {}).get("device_index")
     if not isinstance(dev, int) or isinstance(dev, bool) or dev < 0:
         errors.append("キャプチャーの機器番号は0以上の整数にしてください")

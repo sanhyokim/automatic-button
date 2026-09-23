@@ -171,3 +171,17 @@ def test_number_format_default_and_invalid(tmp_path):
     assert cfg["number_format"] == "integer"
     path.write_text(json.dumps({"number_format": "decimal"}), encoding="utf-8")
     assert load_config(path)[0]["number_format"] == "decimal"
+
+
+def test_capture_source_default_and_invalid(tmp_path):
+    from app.capture import FrameGrabber, ScreenGrabber, make_grabber
+
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"capture": {"device_index": 0}}), encoding="utf-8")
+    cfg, _ = load_config(path)
+    assert cfg["capture"]["source"] == "screen"  # 既存の設定ファイルでも画面の取り込みになる
+    assert isinstance(make_grabber(cfg), ScreenGrabber)
+    cfg["capture"]["source"] = "card"
+    assert isinstance(make_grabber(cfg), FrameGrabber)
+    path.write_text(json.dumps({"capture": {"source": "usb"}}), encoding="utf-8")
+    assert load_config(path)[0]["capture"]["source"] == "screen"

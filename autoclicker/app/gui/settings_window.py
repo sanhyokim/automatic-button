@@ -14,6 +14,7 @@ from .rule_editor import RuleEditor
 from .widgets import RegionField, fit_window, window_pos
 
 NO_FALLBACK = "(未設定)"
+SOURCES = (("screen", "画面を直接"), ("card", "キャプチャーカード"))
 
 # (キー, 表示名) 最小と最大の組
 TIMING_PAIRS = (
@@ -260,6 +261,16 @@ class SettingsWindow(tk.Toplevel):
             ttk.Entry(tab, textvariable=var, width=6).grid(row=r, column=1, pady=2, padx=(4, 0))
             self.detail_vars[(section, key)] = var
             r += 1
+        ttk.Label(tab, text="取り込み方法").grid(row=r, column=0, sticky="w", pady=2)
+        self.source_var = tk.StringVar()
+        self.source_combo = ttk.Combobox(
+            tab, textvariable=self.source_var, state="readonly", width=12,
+            values=[label for _v, label in SOURCES],
+        )
+        src = self.work["capture"].get("source", "screen")
+        self.source_combo.current(next((i for i, (v, _l) in enumerate(SOURCES) if v == src), 0))
+        self.source_combo.grid(row=r, column=1, pady=2, padx=(4, 0), sticky="w")
+        r += 1
         self.use_det_var = tk.BooleanVar(value=bool(self.work["detection"].get("ocr_use_det", True)))
         ttk.Checkbutton(tab, text="文字検出を使う(ocr_use_det)", variable=self.use_det_var).grid(
             row=r, column=0, columnspan=2, sticky="w", pady=2
@@ -298,6 +309,7 @@ class SettingsWindow(tk.Toplevel):
             except ValueError:
                 errors.append(f"{label}が{'整数' if typ is int else '数値'}ではありません")
         cfg["detection"]["ocr_use_det"] = bool(self.use_det_var.get())
+        cfg["capture"]["source"] = SOURCES[max(0, self.source_combo.current())][0]
         return cfg, errors
 
     def test_config(self) -> dict:
@@ -306,6 +318,7 @@ class SettingsWindow(tk.Toplevel):
         if errors or validate_settings(cfg):
             base = copy.deepcopy(self.app.config)
             base["detection"]["ocr_use_det"] = bool(self.use_det_var.get())
+            base["capture"]["source"] = SOURCES[max(0, self.source_combo.current())][0]
             return base
         return cfg
 

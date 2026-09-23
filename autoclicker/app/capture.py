@@ -129,3 +129,74 @@ class FrameGrabber:
             self._cap = None
         with self._lock:
             self._frame = None
+
+
+class ScreenGrabber:
+    """このPCの画面を直接取り込む(キャプチャーカードを使わない)。
+
+    FrameGrabber と同じ使い方ができる。キャプチャーカードを占有しないので、
+    キャプチャーカードを使うほかのアプリと同時に動かせる。
+    """
+
+    def __init__(self, width: int, height: int, monitor: int = 1):
+        self.width = width
+        self.height = height
+        self.monitor = monitor  # mss のモニター番号(1 = メインモニター)
+        self._local = threading.local()
+        self._opened = False
+
+    def _sct(self):
+        # mss のインスタンスは作ったスレッドでだけ使う
+        sct = getattr(self._local, "sct", None)
+        if sct is None:
+            import mss
+
+            sct = mss.mss()
+            self._local.sct = sct
+        return sct
+
+    def open(self) -> None:
+        try:
+            sct = self._sct()
+            monitors = sct.monitors
+        except Exception as e:
+            raise CaptureError(f"画面を取り込めません: {e}") from e
+        if self.monitor >= len(monitors):
+            raise CaptureError(f"モニター{self.monitor}が見つかりません")
+        mon = monitors[self.monitor]
+        w, h = mon["width"], mon["height"]
+        if (w, h) != (self.width, self.height):
+            raise CaptureError(
+                f"画面の解像度が {w}×{h} です({self.width}×{self.height}、表示スケール100%が必要です)"
+            )
+        self._opened = True
+        if self.latest_frame() is None:
+            raise CaptureError("画面を取り込めません")
+
+    def latest_frame(self) -> Optional[np.ndarray]:
+        if not self._opened:
+            return None
+        try:
+            sct = self._sct()
+            shot = sct.grab(sct.monitors[self.monitor])
+            return cv2.cvtColor(np.asarray(shot), cv2.COLOR_BGRA2BGR)
+        except Exception:
+            return None
+
+    def close(self) -> None:
+        self._opened = False
+        sct = getattr(self._local, "sct", None)
+        if sct is not None:
+            try:
+                sct.close()
+            except Exception:
+                pass
+            self._local.sct = None
+
+
+def make_grabber(cfg: dict):
+    """設定の capture.source に応じて取り込み方法を選ぶ。"""
+    c = cfg["capture"]
+    if c.get("source", "screen") == "card":
+        return FrameGrabber(c["device_index"], c["width"], c["height"], c["fps"], c.get("fourcc", ""))
+    return ScreenGrabber(c["width"], c["height"], c.get("monitor", 1))
