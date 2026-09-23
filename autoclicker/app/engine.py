@@ -118,18 +118,34 @@ class Engine:
         if self._thread is not None:
             self._thread.join(timeout)
 
-    def test_read(self, cfg: dict, region: Region) -> str:
-        """読み取りテスト(停止の状態でのみ)。キャプチャーを一時的に開いて1回読む。"""
+    def test_read(self, cfg: dict, region: Region) -> dict:
+        """読み取りテスト(停止の状態でのみ)。キャプチャーを一時的に開いて1回読む。
+
+        返す辞書: text(現在の設定での結果)、image(OCRに渡した画像)、
+        results / errors(文字検出あり=True・なし=False ごと)、brightness、contrast
+        """
         if self.running:
             raise EngineStop("停止の状態でのみ使えます")
         det = cfg["detection"]
         grabber = self._grabber_factory(cfg)
         try:
+            try:
+                self.ocr.load()
+            except OcrError as e:
+                raise EngineStop(str(e)) from e
             grabber.open()
             frame = grabber.latest_frame()
             if frame is None:
                 raise EngineStop("フレームを取得できません")
-            return self.ocr.read_region(frame, region, det["ocr_min_height"], det["ocr_use_det"])
+            info = self.ocr.diagnose(frame, region, det["ocr_min_height"])
+            if info["image"] is None:
+                raise EngineStop("範囲が画面の外にあります")
+            use_det = det["ocr_use_det"]
+            if use_det in info["errors"]:
+                raise EngineStop(f"OCRエラー: {info['errors'][use_det]}")
+            info["text"] = info["results"].get(use_det, "")
+            info["use_det"] = use_det
+            return info
         except OcrError as e:
             raise EngineStop(f"OCRエラー: {e}") from e
         except EngineStop:

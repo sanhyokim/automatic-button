@@ -14,6 +14,7 @@ from ..engine import Engine, EngineStop, timestamp
 from ..hotkey import EscListener
 from ..models import Region
 from .region_selector import select_region
+from .test_result import show_test_result
 from .settings_window import SettingsWindow
 from .widgets import WIDTH
 
@@ -216,7 +217,7 @@ class MainWindow:
         parent.configure(cursor="watch")
         parent.update()
         try:
-            text = self.engine.test_read(cfg, region)
+            info = self.engine.test_read(cfg, region)
         except EngineStop as e:
             messagebox.showerror("読み取りテスト", str(e), parent=parent)
             return None
@@ -225,7 +226,9 @@ class MainWindow:
                 parent.configure(cursor="")
             except tk.TclError:
                 pass
+        text = info["text"]
         self.log(f"読み取りテスト: 「{text}」")
+        show_test_result(parent, info)
         return text
 
     # ------------------------------------------------------------ 終了

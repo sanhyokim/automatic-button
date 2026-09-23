@@ -130,6 +130,30 @@ class OcrEngine:
                 out = self._engine(img)
             return extract_text(out)
 
+    def diagnose(self, frame: np.ndarray, region: Region, min_height: int) -> dict:
+        """読み取りテスト用。OCRに渡す画像と、文字検出あり・なしの両方の結果を返す。"""
+        img = crop_region(frame, region)
+        if img is None or img.size == 0:
+            return {"image": None, "results": {}, "errors": {}, "brightness": None, "contrast": None}
+        pre = preprocess(img, min_height)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        results: dict[bool, str] = {}
+        errors: dict[bool, str] = {}
+        for use_det in (True, False):
+            try:
+                results[use_det] = self.recognize(pre, use_det).strip()
+            except OcrError as e:
+                errors[use_det] = str(e)
+            except Exception as e:
+                errors[use_det] = f"{type(e).__name__}: {e}"
+        return {
+            "image": pre,
+            "results": results,
+            "errors": errors,
+            "brightness": float(gray.mean()),
+            "contrast": float(gray.std()),
+        }
+
     def read_region(self, frame: np.ndarray, region: Region, min_height: int, use_det: bool) -> str:
         """範囲を切り出して読み取る。例外は OcrError として送出する(結果なしは空文字列)。"""
         img = crop_region(frame, region)
