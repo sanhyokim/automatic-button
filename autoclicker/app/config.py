@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from .models import PATTERNS, REGION_LABELS, REQUIRED_REGIONS, Region, Rule
+from .models import NUMBER_FORMATS, PATTERNS, REGION_LABELS, REQUIRED_REGIONS, Region, Rule
 from .parser import normalize
 
 CONFIG_FILENAME = "config.json"
@@ -28,6 +28,8 @@ DEFAULT_CONFIG: dict = {
     "retreat_region": None,
     "waiting_text": "WAITING",
     "fallback_rule_id": None,
+    # パターンBで読み取る数値の形式。メインウィンドウでいつでも切り替えられる
+    "number_format": "integer",
     "timing": {
         "poll_interval": 0.5,
         "reaction_delay_min": 1.0,
@@ -140,6 +142,8 @@ def normalize_config(loaded: dict) -> tuple[dict, list[str]]:
         except ValueError:
             messages.append(f"設定の {i + 1} 番目のルールが読めないため削除しました")
     cfg["rules"] = rules
+    if cfg.get("number_format") not in NUMBER_FORMATS:
+        cfg["number_format"] = "integer"
     if cfg.get("fallback_rule_id") is not None and not isinstance(cfg["fallback_rule_id"], str):
         cfg["fallback_rule_id"] = None
     return cfg, messages
@@ -253,6 +257,8 @@ def validate_settings(cfg: dict) -> list[str]:
     if not isinstance(lines, int) or isinstance(lines, bool) or lines < 1:
         errors.append("動作の記録の最大行数は1以上の整数にしてください")
 
+    if cfg.get("number_format") not in NUMBER_FORMATS:
+        errors.append("数値の形式が正しくありません")
     if not normalize(cfg.get("waiting_text")):
         errors.append("待機表示の文字が空です")
     return errors
@@ -277,8 +283,6 @@ def validate_rule(rule: Rule, other_rules: list[Rule], waiting_text: str = "") -
     for rkey in REQUIRED_REGIONS[rule.pattern]:
         if rule.regions.get(rkey) is None:
             errors.append(f"{REGION_LABELS[rkey]}が設定されていません")
-    if rule.pattern == "B" and rule.number_format not in ("integer", "decimal"):
-        errors.append("数値の形式が選ばれていません")
     return errors
 
 

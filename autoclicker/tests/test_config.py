@@ -63,7 +63,7 @@ def test_missing_items_filled(tmp_path):
     assert cfg["waiting_text"] == "READY"
     assert cfg["capture"]["device_index"] == 0
     rule = cfg["rules"][0]
-    assert rule["id"] and rule["regions"]["button1"] is None and rule["number_format"] == "integer"
+    assert rule["id"] and rule["regions"]["button1"] is None
 
 
 def test_wrong_types_replaced(tmp_path):
@@ -110,7 +110,7 @@ def valid_config():
     cfg["retreat_region"] = region(1800, 1000, 100, 50)
     a = Rule(name="SKY", keyword="SKY", pattern="A")
     a.regions["button1"] = Region(10, 10, 50, 20)
-    b = Rule(name="NUM", keyword="NUM", pattern="B", number_format="decimal")
+    b = Rule(name="NUM", keyword="NUM", pattern="B")
     b.regions.update(number=Region(1, 1, 5, 5), input_field=Region(2, 2, 5, 5), button1=Region(3, 3, 5, 5))
     cfg["rules"] = [a.to_dict(), b.to_dict()]
     cfg["fallback_rule_id"] = a.id
@@ -162,3 +162,12 @@ def test_validate_rule():
     assert any("ボタン1" in e for e in errs) and any("ボタン2" in e for e in errs)
     assert any("キーワードが空" in e for e in validate_rule(Rule(keyword=" "), []))
     assert any("待機表示" in e for e in validate_rule(Rule(keyword="waiting"), [], "WAITING"))
+
+
+def test_number_format_default_and_invalid(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"number_format": "hex"}), encoding="utf-8")
+    cfg, _ = load_config(path)
+    assert cfg["number_format"] == "integer"
+    path.write_text(json.dumps({"number_format": "decimal"}), encoding="utf-8")
+    assert load_config(path)[0]["number_format"] == "decimal"

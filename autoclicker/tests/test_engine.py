@@ -93,10 +93,11 @@ def make_config():
     a.regions["button1"] = Region(1000, 500, 50, 20)
     c = Rule(name="SEA", keyword="SEA", pattern="C")
     c.regions.update(button1=Region(1100, 500, 50, 20), button2=Region(1200, 500, 50, 20))
-    b = Rule(name="NUM", keyword="NUM", pattern="B", number_format="decimal")
+    b = Rule(name="NUM", keyword="NUM", pattern="B")
     b.regions.update(number=NUM, input_field=Region(300, 300, 80, 20), button1=Region(400, 300, 50, 20))
     cfg["rules"] = [a.to_dict(), c.to_dict(), b.to_dict()]
     cfg["fallback_rule_id"] = c.id
+    cfg["number_format"] = "decimal"
     return cfg
 
 
@@ -224,3 +225,18 @@ def test_frame_lost_stops(pag, monkeypatch):
     events = run_until_stopped(engine, make_config())
     assert events[-1][2] == "フレームを取得できないため停止"
     assert sum("再試行" in l for l in logs(events)) == 3
+
+
+def test_number_format_switch_while_running(pag):
+    # 開始時の設定(整数)で判定し、不正な形式への切り替えは無視する
+    kw = lambda n: "NUM" if n in (2, 3) else "WAITING"
+    ocr = FakeOcr(kw, number_fn=lambda n: "1,250")
+    engine = eng.Engine(ocr, grabber_factory=lambda cfg: FakeGrabber())
+    engine.set_number_format("decimal")
+    cfg = make_config()
+    cfg["number_format"] = "integer"
+    events = run_until_stopped(engine, cfg, stop_when=lambda: ocr.kw_calls > 15)
+    assert "".join(op[1] for op in pag.ops if op[0] == "write") == "1250"
+    assert any("数値の形式: 整数" in l for l in logs(events))
+    engine.set_number_format("bogus")
+    assert engine.number_format == "integer"

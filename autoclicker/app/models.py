@@ -82,7 +82,6 @@ class Rule:
     keyword: str = ""
     pattern: str = "A"
     regions: dict = field(default_factory=lambda: {k: None for k in REGION_KEYS})
-    number_format: str = "integer"
 
     @classmethod
     def from_dict(cls, d: dict) -> "Rule":
@@ -92,14 +91,12 @@ class Rule:
         regions = {k: Region.from_dict(raw_regions.get(k)) for k in REGION_KEYS}
         rule_id = d.get("id")
         pattern = d.get("pattern")
-        fmt = d.get("number_format")
         return cls(
             id=str(rule_id) if rule_id else str(uuid.uuid4()),
             name=str(d.get("name") or ""),
             keyword=str(d.get("keyword") or ""),
             pattern=pattern if pattern in PATTERNS else "A",
             regions=regions,
-            number_format=fmt if fmt in NUMBER_FORMATS else "integer",
         )
 
     def to_dict(self) -> dict:
@@ -112,7 +109,6 @@ class Rule:
                 k: (self.regions.get(k).to_dict() if self.regions.get(k) else None)
                 for k in REGION_KEYS
             },
-            "number_format": self.number_format,
         }
 
     def region(self, key: str) -> Optional[Region]:

@@ -57,6 +57,12 @@ class Engine:
         self.input = InputController(self.stop_event)
         self.cfg: dict = {}
         self.grabber = None
+        self.number_format = "integer"  # 動作中でもGUIから変更できる
+
+    def set_number_format(self, fmt: str) -> None:
+        """数値の形式を切り替える。次に数値を読み取るときから反映する。"""
+        if fmt in ("integer", "decimal"):
+            self.number_format = fmt
 
     # ------------------------------------------------------------ 公開API
     @property
@@ -89,6 +95,7 @@ class Engine:
                 self.log(f"  ・{e}")
             return False
         self.cfg = copy.deepcopy(cfg)
+        self.set_number_format(cfg.get("number_format", "integer"))
         self.stop_event.clear()
         with self._lock:
             self._stop_reason = None
@@ -265,15 +272,17 @@ class Engine:
         det = self.cfg["detection"]
         region = rule.region("number")
         max_reads = det["number_max_reads"]
+        fmt = self.number_format
+        self.log(f"数値の形式: {'整数' if fmt == 'integer' else '小数'}")
         reads: list[str] = []
         while True:
             t0 = time.monotonic()
             raw = self._read(region)
             reads.append(raw)
-            ok, value = parser.check_number(raw, rule.number_format)
+            ok, value = parser.check_number(raw, fmt)
             result = f"合格 → {value}" if ok else "不合格"
             self.log(f"数値の読み取り {len(reads)}/{max_reads}: 「{raw}」 {result}")
-            decision = parser.decide_number(reads, rule.number_format, max_reads, det["number_match_count"])
+            decision = parser.decide_number(reads, fmt, max_reads, det["number_match_count"])
             if decision.status == parser.CONFIRMED:
                 self.log(f"数値を確定: {decision.value}")
                 return decision.value

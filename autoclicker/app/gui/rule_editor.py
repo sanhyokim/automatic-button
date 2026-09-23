@@ -13,7 +13,7 @@ from .widgets import RegionField, fit_window, window_pos
 # パターンごとに表示する項目(仕様書 6.3節の表)
 VISIBLE = {
     "A": ("button1",),
-    "B": ("number", "number_format", "input_field", "button1"),
+    "B": ("number", "input_field", "button1"),
     "C": ("button1", "button2"),
 }
 
@@ -69,13 +69,6 @@ class RuleEditor(tk.Toplevel):
             f.set(self.rule.regions.get(key))
             self.fields[key] = f
 
-        row = ttk.Frame(body)
-        ttk.Label(row, text="数値の形式", width=8).pack(side="left")
-        self.format_var = tk.StringVar(value=self.rule.number_format)
-        ttk.Radiobutton(row, text="整数", value="integer", variable=self.format_var).pack(side="left")
-        ttk.Radiobutton(row, text="小数", value="decimal", variable=self.format_var).pack(side="left", padx=6)
-        self.format_row = row
-
         self.test_label = ttk.Label(body, text="", wraplength=255, foreground="#0050a0")
 
         row = ttk.Frame(body)
@@ -99,16 +92,12 @@ class RuleEditor(tk.Toplevel):
         self.name_row.pack(**opts)
         self.keyword_row.pack(**opts)
         self.pattern_row.pack(**opts)
-        order = ("number", "number_format", "input_field", "button1", "button2")
-        for key in order:
+        for key in REGION_KEYS:
             if key not in visible:
                 continue
-            if key == "number_format":
-                self.format_row.pack(**opts)
-            else:
-                self.fields[key].pack(**opts)
-                if key == "number" and self.test_label.cget("text"):
-                    self.test_label.pack(fill="x")
+            self.fields[key].pack(**opts)
+            if key == "number" and self.test_label.cget("text"):
+                self.test_label.pack(fill="x")
         self.button_row.pack(fill="x", pady=(8, 0))
         if self._placed:
             x, y = window_pos(self)
@@ -129,7 +118,7 @@ class RuleEditor(tk.Toplevel):
         text = self.app.test_read(region, self.settings.test_config(), parent=self)
         if text is None:
             return
-        fmt = self.format_var.get()
+        fmt = self.app.config.get("number_format", "integer")  # メインウィンドウの切り替え
         ok, value = parser.check_number(text, fmt)
         fmt_name = "整数" if fmt == "integer" else "小数"
         self.test_label.configure(
@@ -162,7 +151,6 @@ class RuleEditor(tk.Toplevel):
             keyword=self.keyword_var.get().strip(),
             pattern=pattern,
             regions=regions,
-            number_format=self.format_var.get(),
         )
         others = [r for r in self.settings.rules if r.id != rule.id]
         errors += validate_rule(rule, others, self.settings.waiting_text())

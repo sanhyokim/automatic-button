@@ -54,6 +54,16 @@ class MainWindow:
         self.stop_btn = ttk.Button(buttons, text="停止", command=self.on_stop)
         self.stop_btn.pack(side="left", fill="x", expand=True, padx=(4, 0))
 
+        fmt_row = ttk.Frame(frame)
+        fmt_row.pack(fill="x", pady=(4, 0))
+        ttk.Label(fmt_row, text="数値の形式").pack(side="left")
+        self.format_var = tk.StringVar(value=config.get("number_format", "integer"))
+        for text, value in (("整数", "integer"), ("小数", "decimal")):
+            ttk.Radiobutton(
+                fmt_row, text=text, value=value, variable=self.format_var, command=self.on_format_changed
+            ).pack(side="left", padx=(8, 0))
+        self.engine.set_number_format(self.format_var.get())
+
         self.status_var = tk.StringVar(value="停止")
         ttk.Label(frame, textvariable=self.status_var, wraplength=WIDTH - 16, font=("", 10, "bold")).pack(
             fill="x", pady=4
@@ -124,6 +134,17 @@ class MainWindow:
     def on_stop(self) -> None:
         self.engine.request_stop("停止ボタン")
 
+    def on_format_changed(self) -> None:
+        """数値の形式の切り替え(動作中でも可。次に数値を読み取るときから反映)。"""
+        fmt = self.format_var.get()
+        self.config["number_format"] = fmt
+        self.engine.set_number_format(fmt)
+        try:
+            save_config(self.config_path, self.config)
+        except OSError:
+            pass
+        self.log(f"数値の形式を「{'整数' if fmt == 'integer' else '小数'}」に変更")
+
     # ------------------------------------------------------------ 設定
     def open_settings(self) -> None:
         if self.state != eng.STOPPED or self.settings is not None:
@@ -138,6 +159,8 @@ class MainWindow:
     def apply_config(self, cfg: dict) -> bool:
         """設定ウィンドウで保存した内容を反映し、ファイルに書き込む。"""
         self.config = copy.deepcopy(cfg)
+        # 数値の形式はメインウィンドウの切り替えを優先する
+        self.config["number_format"] = self.format_var.get()
         try:
             save_config(self.config_path, self.config)
         except OSError as e:
