@@ -253,6 +253,10 @@ def validate_settings(cfg: dict) -> list[str]:
     if not isinstance(det.get("ocr_use_det"), bool):
         errors.append("ocr_use_det が true/false ではありません")
 
+    dev = cfg.get("capture", {}).get("device_index")
+    if not isinstance(dev, int) or isinstance(dev, bool) or dev < 0:
+        errors.append("キャプチャーの機器番号は0以上の整数にしてください")
+
     lines = cfg.get("gui", {}).get("log_max_lines")
     if not isinstance(lines, int) or isinstance(lines, bool) or lines < 1:
         errors.append("動作の記録の最大行数は1以上の整数にしてください")

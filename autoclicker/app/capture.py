@@ -32,11 +32,28 @@ class FrameGrabber:
         self._frame: Optional[np.ndarray] = None
         self._frame_time = 0.0
 
+    def _open_capture(self):
+        """DirectShow で開く。開けなければ Media Foundation、既定の方式の順に試す。"""
+        apis = [getattr(cv2, name) for name in ("CAP_DSHOW", "CAP_MSMF") if hasattr(cv2, name)]
+        apis.append(None)
+        for api in apis:
+            try:
+                cap = cv2.VideoCapture(self.device_index) if api is None else cv2.VideoCapture(self.device_index, api)
+            except Exception:
+                continue
+            if cap is not None and cap.isOpened():
+                return cap
+            if cap is not None:
+                cap.release()
+        return None
+
     def open(self) -> None:
-        api = getattr(cv2, "CAP_DSHOW", None)
-        cap = cv2.VideoCapture(self.device_index, api) if api is not None else cv2.VideoCapture(self.device_index)
-        if cap is None or not cap.isOpened():
-            raise CaptureError(f"キャプチャーカード(機器番号{self.device_index})を開けません")
+        cap = self._open_capture()
+        if cap is None:
+            raise CaptureError(
+                f"キャプチャーカード(機器番号{self.device_index})を開けません。"
+                "接続、ほかのアプリ(OBSなど)で使用中でないか、機器番号(設定の「詳細」タブ)を確認してください"
+            )
         if self.fourcc and len(self.fourcc) == 4:
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*self.fourcc))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)

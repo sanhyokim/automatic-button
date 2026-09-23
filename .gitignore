@@ -7,3 +7,4 @@ autoclicker/config.json.*.tmp
 build/
 dist/
 *.spec
+autoclicker/capture_test_*.png

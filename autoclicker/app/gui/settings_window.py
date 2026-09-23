@@ -36,6 +36,7 @@ DETAIL_FIELDS = (
     ("detection", "ocr_min_height", "OCRの最小の高さ(px)", int),
     ("detection", "click_margin", "クリックの余白(px)", int),
     ("gui", "log_max_lines", "記録の最大行数", int),
+    ("capture", "device_index", "キャプチャーの機器番号", int),
 )
 
 
