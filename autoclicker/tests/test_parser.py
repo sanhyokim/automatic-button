@@ -102,3 +102,13 @@ def test_decide_early_abort():
 def test_decide_integer_compares_input_value():
     d, n = run_incrementally(["1,250", "1250", "1,250"], fmt="integer")
     assert (d.status, d.value, n) == (CONFIRMED, "1250", 3)
+
+
+def test_confusable_characters():
+    rules = [Rule(name="SKY", keyword="SKY"), Rule(name="FOLD", keyword="FOLD")]
+    assert parser.is_waiting("WAlTING", "WAITING")  # 小文字のL
+    assert parser.is_waiting("WAIT1NG", "WAITING")
+    assert parser.is_waiting("WA|TING", "WAITING")
+    assert parser.match_rule("F0LD", rules).name == "FOLD"
+    assert parser.match_rule("FOID", rules).name == "FOLD"
+    assert parser.match_rule("SKY1", rules) is None  # 余計な文字は一致しない

@@ -9,6 +9,8 @@ from typing import Iterable, Optional, Sequence
 from .models import Rule
 
 _WS_RE = re.compile(r"\s+")
+# OCRが取り違えやすい文字をそろえる(キーワード・待機表示の比較に使う)
+_CONFUSABLE = str.maketrans({"0": "O", "1": "I", "L": "I", "|": "I", "!": "I"})
 _INTEGER_RE = re.compile(r"^(\d{1,3}(,\d{3})+|\d+)$")
 _DECIMAL_RE = re.compile(r"^\d+\.\d{2}$")
 
@@ -24,19 +26,24 @@ def normalize(text: Optional[str]) -> str:
     return _WS_RE.sub("", text).upper()
 
 
+def canonical(text: Optional[str]) -> str:
+    """比較用の形。正規化したうえで、OCRが取り違えやすい文字(0/O、1/I/L など)をそろえる。"""
+    return normalize(text).translate(_CONFUSABLE)
+
+
 def is_waiting(text: Optional[str], waiting_text: str) -> bool:
     """読み取り結果が待機表示かどうか。待機表示の設定が空なら常に False。"""
-    target = normalize(waiting_text)
-    return bool(target) and normalize(text) == target
+    target = canonical(waiting_text)
+    return bool(target) and canonical(text) == target
 
 
 def match_rule(text: Optional[str], rules: Iterable[Rule]) -> Optional[Rule]:
     """正規化して完全一致したルールを返す。空文字列は何にも一致しない。"""
-    n = normalize(text)
+    n = canonical(text)
     if not n:
         return None
     for rule in rules:
-        if normalize(rule.keyword) == n:
+        if canonical(rule.keyword) == n:
             return rule
     return None
 

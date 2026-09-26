@@ -327,7 +327,7 @@ class SettingsWindow(tk.Toplevel):
         if not errors:
             errors = validate_settings(cfg)
         # 保存済みのルールの内容も確認する(キーワードの重複など)
-        norm = [parser.normalize(r.keyword) for r in self.rules]
+        norm = [parser.canonical(r.keyword) for r in self.rules]
         if len(set(norm)) != len(norm):
             errors.append("キーワードが重複しているルールがあります")
         if errors:

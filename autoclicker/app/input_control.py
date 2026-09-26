@@ -13,6 +13,8 @@ from typing import Callable, Optional
 from .models import Region
 
 MOVE_STEP_SEC = 0.01  # マウス移動の1点あたりの間隔
+HOVER_SEC = (0.05, 0.15)  # 移動してからクリックするまでの間(アプリがカーソルを認識するため)
+HOLD_SEC = (0.05, 0.12)  # ボタン・キーを押している時間(一瞬のクリックを無視するアプリがあるため)
 
 
 class StopRequested(Exception):
@@ -152,23 +154,45 @@ class InputController:
 
     def click_region(self, region: Region, margin: int, dur_min: float, dur_max: float) -> tuple[int, int]:
         x, y = self.move_into(region, margin, dur_min, dur_max)
-        self.check_stop()
-        self._call(get_pyautogui().click, x, y, _pause=False)
+        self.random_sleep(*HOVER_SEC)
+        pag = get_pyautogui()
+        self._call(pag.mouseDown, x, y, button="left", _pause=False)
+        try:
+            self._hold()
+        finally:
+            # 停止されても、ボタンを押したままにはしない
+            self._call(pag.mouseUp, x, y, button="left", _pause=False)
         return x, y
 
+    def _hold(self) -> None:
+        time.sleep(self.rng.uniform(*HOLD_SEC))  # 短いので中断しない(押したままを防ぐ)
+
     def hotkey(self, *keys: str) -> None:
+        """例: hotkey("ctrl", "a")。順に押し、逆順に離す。"""
         self.check_stop()
-        self._call(get_pyautogui().hotkey, *keys, _pause=False)
+        pag = get_pyautogui()
+        pressed = []
+        try:
+            for k in keys:
+                self._call(pag.keyDown, k, _pause=False)
+                pressed.append(k)
+                self._hold()
+        finally:
+            for k in reversed(pressed):
+                self._call(pag.keyUp, k, _pause=False)
 
     def press(self, key: str) -> None:
         self.check_stop()
-        self._call(get_pyautogui().press, key, _pause=False)
+        pag = get_pyautogui()
+        self._call(pag.keyDown, key, _pause=False)
+        try:
+            self._hold()
+        finally:
+            self._call(pag.keyUp, key, _pause=False)
 
     def type_text(self, text: str, interval_min: float, interval_max: float) -> None:
         """1文字ずつランダムな間隔で入力する。停止されたら残りは入力しない。"""
-        pag = get_pyautogui()
         for i, ch in enumerate(text):
             if i > 0:
                 self.random_sleep(interval_min, interval_max)
-            self.check_stop()
-            self._call(pag.write, ch, _pause=False)
+            self.press(ch)

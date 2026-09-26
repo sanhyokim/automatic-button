@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from .models import NUMBER_FORMATS, PATTERNS, REGION_LABELS, REQUIRED_REGIONS, Region, Rule
-from .parser import normalize
+from .parser import canonical, normalize
 
 CONFIG_FILENAME = "config.json"
 
@@ -278,15 +278,15 @@ def validate_settings(cfg: dict) -> list[str]:
 def validate_rule(rule: Rule, other_rules: list[Rule], waiting_text: str = "") -> list[str]:
     """ルールの保存時の検証(8.1節、GUI-24)。other_rules は自分以外のルール。"""
     errors: list[str] = []
-    key = normalize(rule.keyword)
+    key = canonical(rule.keyword)
     if not key:
         errors.append("キーワードが空です")
     else:
         for other in other_rules:
-            if other.id != rule.id and normalize(other.keyword) == key:
+            if other.id != rule.id and canonical(other.keyword) == key:
                 errors.append(f"キーワードがルール「{other.display_name}」と重複しています")
                 break
-        if waiting_text and key == normalize(waiting_text):
+        if waiting_text and key == canonical(waiting_text):
             errors.append("キーワードが待機表示の文字と同じです")
     if rule.pattern not in PATTERNS:
         errors.append("パターンが選ばれていません")

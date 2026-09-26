@@ -245,11 +245,19 @@ class Engine:
         waiting = self.cfg["waiting_text"]
         last_id: Optional[str] = None
         count = 0
+        last_logged = None
         while True:
             t0 = time.monotonic()
             text = self._read(region)
-            rule = None if parser.is_waiting(text, waiting) else parser.match_rule(text, rules)
-            if rule is None:
+            waiting_now = parser.is_waiting(text, waiting)
+            rule = None if waiting_now else parser.match_rule(text, rules)
+            if text and not waiting_now and rule is None and text != last_logged:
+                # どのルールとも一致しない文字は、変わったときだけ記録する(誤読の確認用)
+                self.log(f"読み取り: 「{text}」(一致なし)")
+            last_logged = text if text else last_logged
+            if not text:
+                pass  # 空の読み取りは数え直さない(一瞬読めなかっただけの場合があるため)
+            elif rule is None:
                 last_id, count = None, 0
             else:
                 count = count + 1 if rule.id == last_id else 1
@@ -355,17 +363,20 @@ class Engine:
         waiting = self.cfg["waiting_text"]
         start = time.monotonic()
         count = 0
+        last_text = ""
         while True:
             if time.monotonic() - start >= timing["waiting_timeout"]:
-                raise EngineStop("WAITINGに戻らないため停止")
+                raise EngineStop(f"WAITINGに戻らないため停止(最後の読み取り: 「{last_text}」)")
             t0 = time.monotonic()
             text = self._read(region)
+            if text:
+                last_text = text
             if parser.is_waiting(text, waiting):
                 count += 1
                 if count >= need:
                     return
-            else:
-                count = 0
+            elif text:
+                count = 0  # 空の読み取りは数え直さない
             self._sleep_until(t0 + timing["poll_interval"])
 
 

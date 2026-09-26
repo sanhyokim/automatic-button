@@ -50,6 +50,8 @@ class FakePag:
     def __init__(self):
         self.pos = (960, 540)
         self.ops = []
+        self.held = set()
+        self.down = False
         self.lock = threading.Lock()
 
     def position(self):
@@ -58,17 +60,19 @@ class FakePag:
     def moveTo(self, x, y, _pause=True):
         self.pos = (x, y)
 
-    def click(self, x, y, _pause=True):
+    def mouseDown(self, x, y, button="left", _pause=True):
         self.ops.append(("click", x, y))
+        self.down = True
 
-    def hotkey(self, *keys, _pause=True):
-        self.ops.append(("hotkey",) + keys)
+    def mouseUp(self, x, y, button="left", _pause=True):
+        self.down = False
 
-    def press(self, key, _pause=True):
-        self.ops.append(("press", key))
+    def keyDown(self, key, _pause=True):
+        self.ops.append(("key", key))
+        self.held.add(key)
 
-    def write(self, ch, _pause=True):
-        self.ops.append(("write", ch))
+    def keyUp(self, key, _pause=True):
+        self.held.discard(key)
 
 
 @pytest.fixture
@@ -135,17 +139,17 @@ def test_pattern_b_then_wait_timeout(pag):
     engine = eng.Engine(ocr, grabber_factory=lambda cfg: FakeGrabber())
     events = run_until_stopped(engine, make_config())
     kinds = [op[0] for op in pag.ops]
-    assert kinds == ["click", "hotkey", "press", "write", "write", "write", "write", "write", "click"]
-    assert pag.ops[1] == ("hotkey", "ctrl", "a")
-    assert pag.ops[2] == ("press", "delete")
-    assert "".join(op[1] for op in pag.ops if op[0] == "write") == "12.50"
+    assert kinds == ["click"] + ["key"] * 8 + ["click"]
+    assert pag.ops[1:4] == [("key", "ctrl"), ("key", "a"), ("key", "delete")]
+    assert "".join(op[1] for op in pag.ops[4:9]) == "12.50"
+    assert not pag.held and not pag.down  # 押したままのキー・ボタンがない
     assert in_region(pag.ops[0], Region(300 + 2, 300 + 2, 80 - 4, 20 - 4))
     assert in_region(pag.ops[-1], Region(400, 300, 50, 20))
     assert ocr.num_calls == 4  # 4回目で確定
     assert in_region(("", *pag.pos), Region(1800, 1000, 100, 50))  # 退避
     assert "enter" not in str(pag.ops).lower()
     assert states(events)[-4:] == [eng.MONITORING, eng.EXECUTING, eng.WAIT_RETURN, eng.STOPPED]
-    assert events[-1] == ("state", eng.STOPPED, "WAITINGに戻らないため停止")
+    assert events[-1][2] == "WAITINGに戻らないため停止(最後の読み取り: 「NUM」)"
     assert any("数値を確定: 12.50" in l for l in logs(events))
 
 
@@ -172,7 +176,7 @@ def test_no_double_action_and_confirm_count(pag):
     engine = eng.Engine(ocr, grabber_factory=lambda cfg: FakeGrabber())
     events = run_until_stopped(engine, make_config())
     assert [op[0] for op in pag.ops] == ["click"]
-    assert events[-1][2] == "WAITINGに戻らないため停止"
+    assert events[-1][2].startswith("WAITINGに戻らないため停止")
 
 
 def test_stop_during_move(pag, monkeypatch):
@@ -236,7 +240,20 @@ def test_number_format_switch_while_running(pag):
     cfg = make_config()
     cfg["number_format"] = "integer"
     events = run_until_stopped(engine, cfg, stop_when=lambda: ocr.kw_calls > 15)
-    assert "".join(op[1] for op in pag.ops if op[0] == "write") == "1250"
+    assert "".join(op[1] for op in pag.ops[4:8]) == "1250"
     assert any("数値の形式: 整数" in l for l in logs(events))
     engine.set_number_format("bogus")
     assert engine.number_format == "integer"
+
+
+def test_blank_read_does_not_reset_and_misread_logged(pag):
+    # SKY → 空 → SKY で確定する。一致しない文字は記録に出る
+    seq = {1: "WAITING", 2: "SKY", 3: "", 4: "SKY", 5: "WAlTING", 6: "", 7: "WAITING"}
+    kw = lambda n: seq.get(n, "XYZ")
+    ocr = FakeOcr(kw)
+    engine = eng.Engine(ocr, grabber_factory=lambda cfg: FakeGrabber())
+    events = run_until_stopped(engine, make_config(), stop_when=lambda: ocr.kw_calls > 12)
+    assert [op[0] for op in pag.ops] == ["click"]
+    text = "\n".join(logs(events))
+    assert "WAITINGに復帰" in text
+    assert text.count("読み取り: 「XYZ」(一致なし)") == 1  # 変わったときだけ記録
