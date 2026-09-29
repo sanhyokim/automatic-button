@@ -93,6 +93,7 @@ def make_config():
     t["poll_interval"] = 0.001
     t["waiting_timeout"] = 0.3
     cfg["detection"]["number_read_interval"] = 0.001
+    cfg["detection"]["retry_count"] = 0
     a = Rule(name="SKY", keyword="SKY", pattern="A")
     a.regions["button1"] = Region(1000, 500, 50, 20)
     c = Rule(name="SEA", keyword="SEA", pattern="C")
@@ -257,3 +258,30 @@ def test_blank_read_does_not_reset_and_misread_logged(pag):
     text = "\n".join(logs(events))
     assert "WAITINGに復帰" in text
     assert text.count("読み取り: 「XYZ」(一致なし)") == 1  # 変わったときだけ記録
+
+
+def test_retry_when_keyword_stays(pag):
+    # 動作後も SKY が消えない → retry_delay 後にもう一度クリック → その後 WAITING に戻る
+    kw = lambda n: "WAITING" if n == 1 or len([o for o in pag.ops if o[0] == "click"]) >= 2 else "SKY"
+    ocr = FakeOcr(kw)
+    cfg = make_config()
+    cfg["detection"]["retry_count"] = 1
+    cfg["timing"]["retry_delay"] = 0.05
+    engine = eng.Engine(ocr, grabber_factory=lambda cfg: FakeGrabber())
+    events = run_until_stopped(engine, cfg, stop_when=lambda: "復帰" in str(list(engine.events.queue)))
+    assert [o[0] for o in pag.ops] == ["click", "click"]
+    text = "\n".join(logs(events))
+    assert "もう一度実行します(1/1)" in text
+    assert "WAITINGに復帰" in text
+
+
+def test_retry_limit(pag):
+    # 何度やってもキーワードが消えない場合、retry_count 回だけやり直して、あとはタイムアウト
+    ocr = FakeOcr(lambda n: "WAITING" if n == 1 else "SKY")
+    cfg = make_config()
+    cfg["detection"]["retry_count"] = 2
+    cfg["timing"]["retry_delay"] = 0.02
+    engine = eng.Engine(ocr, grabber_factory=lambda cfg: FakeGrabber())
+    events = run_until_stopped(engine, cfg)
+    assert [o[0] for o in pag.ops] == ["click"] * 3
+    assert events[-1][2].startswith("WAITINGに戻らないため停止")

@@ -44,6 +44,8 @@ DEFAULT_CONFIG: dict = {
         "type_interval_min": 0.05,
         "type_interval_max": 0.15,
         "waiting_timeout": 60.0,
+        # 動作後もキーワードが消えないとき、この秒数たったらもう一度実行する
+        "retry_delay": 5.0,
     },
     "detection": {
         "keyword_confirm_count": 2,
@@ -54,6 +56,10 @@ DEFAULT_CONFIG: dict = {
         "ocr_min_height": 64,
         "ocr_use_det": True,
         "click_margin": 2,
+        # クリック位置を選ぶ広さ(範囲の中央から。1.0 = 範囲全体)
+        "click_area": 0.6,
+        # キーワードが消えないときにもう一度実行する回数(0 = しない)
+        "retry_count": 1,
     },
     "gui": {
         "log_max_lines": 200,
@@ -71,6 +77,7 @@ TIMING_RANGES = (
 TIMING_SINGLES = (
     ("poll_interval", "監視の間隔"),
     ("waiting_timeout", "WAITING復帰のタイムアウト"),
+    ("retry_delay", "再実行までの時間"),
 )
 # (キー, 表示名, 最小値)
 DETECTION_INTS = (
@@ -80,6 +87,7 @@ DETECTION_INTS = (
     ("number_match_count", "確定に必要な一致回数", 1),
     ("ocr_min_height", "OCRの最小の高さ", 1),
     ("click_margin", "クリックの余白", 0),
+    ("retry_count", "再実行の回数", 0),
 )
 
 
@@ -252,6 +260,9 @@ def validate_settings(cfg: dict) -> list[str]:
         errors.append("数値の読み取り間隔が数値ではありません")
     elif v < 0:
         errors.append("数値の読み取り間隔は0以上にしてください")
+    area = det.get("click_area")
+    if not _is_number(area) or not 0 < area <= 1:
+        errors.append("クリック位置の広さは0より大きく1以下にしてください")
     mc, mr = det.get("number_match_count"), det.get("number_max_reads")
     if isinstance(mc, int) and isinstance(mr, int) and mc > mr:
         errors.append("確定に必要な一致回数が最大読み取り回数より大きくなっています")

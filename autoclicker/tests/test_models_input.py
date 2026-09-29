@@ -53,3 +53,13 @@ def test_rule_roundtrip():
     back = Rule.from_dict(d)
     assert back == rule
     assert back.list_label() == "SKY | C"
+
+
+def test_click_area_limits_to_center():
+    rng = random.Random(4)
+    r = Region(100, 200, 101, 41)  # 余白2 → x: 102..198, y: 202..238
+    for _ in range(5000):
+        x, y = random_point_in_region(r, 2, rng, area=0.5)
+        assert 126 <= x <= 174 and 211 <= y <= 229
+    for _ in range(100):
+        assert random_point_in_region(r, 2, rng, area=0.0) == (150, 220)

@@ -26,6 +26,7 @@ TIMING_PAIRS = (
 TIMING_SINGLE = (
     ("poll_interval", "監視の間隔"),
     ("waiting_timeout", "WAITING復帰のタイムアウト"),
+    ("retry_delay", "再実行までの時間"),
 )
 # (セクション, キー, 表示名, 型)
 DETAIL_FIELDS = (
@@ -36,6 +37,8 @@ DETAIL_FIELDS = (
     ("detection", "waiting_confirm_count", "WAITING確定の回数", int),
     ("detection", "ocr_min_height", "OCRの最小の高さ(px)", int),
     ("detection", "click_margin", "クリックの余白(px)", int),
+    ("detection", "click_area", "クリック位置の広さ(0.1〜1)", float),
+    ("detection", "retry_count", "再実行の回数(0=しない)", int),
     ("gui", "log_max_lines", "記録の最大行数", int),
     ("capture", "device_index", "キャプチャーの機器番号", int),
 )

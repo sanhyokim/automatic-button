@@ -11,6 +11,7 @@ import time
 from typing import Callable, Optional
 
 from .models import Region
+from .winfocus import activate_window_at
 
 MOVE_STEP_SEC = 0.01  # マウス移動の1点あたりの間隔
 HOVER_SEC = (0.05, 0.15)  # 移動してからクリックするまでの間(アプリがカーソルを認識するため)
@@ -26,19 +27,27 @@ class InputError(Exception):
 
 
 def random_point_in_region(
-    region: Region, margin: int, rng: Optional[random.Random] = None
+    region: Region, margin: int, rng: Optional[random.Random] = None, area: float = 1.0
 ) -> tuple[int, int]:
     """範囲の内側のランダムな整数座標(端から margin 以上内側)。
 
+    area(0〜1)は、中心からどれだけの広さの中で選ぶか(1.0 = 範囲全体、0.5 = 中央の半分)。
     余白を取れない軸は中心座標を使う。
     """
     rng = rng or random
+    area = min(1.0, max(0.0, area))
 
     def axis(start: int, length: int) -> int:
         lo = start + margin
         hi = start + length - 1 - margin
         if hi < lo:
             return start + length // 2
+        if area < 1.0:
+            c = (lo + hi) / 2
+            half = (hi - lo) * area / 2
+            lo, hi = math.ceil(c - half), math.floor(c + half)
+            if hi < lo:
+                return int(round(c))
         return rng.randint(lo, hi)
 
     return axis(region.x, region.w), axis(region.y, region.h)
@@ -106,6 +115,8 @@ class InputController:
     def __init__(self, stop_event: threading.Event, rng: Optional[random.Random] = None):
         self.stop_event = stop_event
         self.rng = rng or random.Random()
+        self.on_log: Optional[Callable[[str], None]] = None
+        self.activate = activate_window_at  # テストで差し替えられるように
 
     # ---- 待機
     def check_stop(self) -> None:
@@ -147,13 +158,22 @@ class InputController:
             if wait > 0:
                 self.interruptible_sleep(wait)
 
-    def move_into(self, region: Region, margin: int, dur_min: float, dur_max: float) -> tuple[int, int]:
-        target = random_point_in_region(region, margin, self.rng)
+    def move_into(
+        self, region: Region, margin: int, dur_min: float, dur_max: float, area: float = 1.0
+    ) -> tuple[int, int]:
+        target = random_point_in_region(region, margin, self.rng, area)
         self.move_to(target, self.rng.uniform(dur_min, dur_max))
         return target
 
-    def click_region(self, region: Region, margin: int, dur_min: float, dur_max: float) -> tuple[int, int]:
-        x, y = self.move_into(region, margin, dur_min, dur_max)
+    def click_region(
+        self, region: Region, margin: int, dur_min: float, dur_max: float, area: float = 1.0
+    ) -> tuple[int, int]:
+        x, y = self.move_into(region, margin, dur_min, dur_max, area)
+        if self.activate(x, y):
+            # 前面にした直後のクリックが無視されないよう、少し待つ
+            if self.on_log:
+                self.on_log("クリック先のウィンドウを前面にしました")
+            self.random_sleep(0.15, 0.3)
         self.random_sleep(*HOVER_SEC)
         pag = get_pyautogui()
         self._call(pag.mouseDown, x, y, button="left", _pause=False)

@@ -55,6 +55,7 @@ class Engine:
         self._state = STOPPED
         self._ocr_error_times: dict[str, float] = {}
         self.input = InputController(self.stop_event)
+        self.input.on_log = self.log
         self.cfg: dict = {}
         self.grabber = None
         self.number_format = "integer"  # 動作中でもGUIから変更できる
@@ -204,7 +205,7 @@ class Engine:
             self._set_state(EXECUTING)
             self._execute(rule)
             self._set_state(WAIT_RETURN)
-            self._wait_return()
+            self._wait_return(rule)
             self.log("WAITINGに復帰(監視を再開)")
 
     # ---- 読み取り
@@ -321,8 +322,9 @@ class Engine:
 
     def _click(self, region: Region) -> None:
         t = self.cfg["timing"]
+        det = self.cfg["detection"]
         self.input.click_region(
-            region, self.cfg["detection"]["click_margin"], t["move_duration_min"], t["move_duration_max"]
+            region, det["click_margin"], t["move_duration_min"], t["move_duration_max"], det["click_area"]
         )
 
     def _perform(self, rule: Rule, value: Optional[str]) -> None:
@@ -356,13 +358,22 @@ class Engine:
         self.log("カーソルを退避")
 
     # ---- WAITING復帰待ち(WAIT_RETURN)
-    def _wait_return(self) -> None:
+    def _wait_return(self, rule: Rule) -> None:
+        """待機表示に戻るのを待つ。
+
+        同じキーワードが retry_delay 秒以上表示されたままなら、クリックが効かなかったとみなして
+        retry_count 回まで動作をやり直す。
+        """
         region = Region.from_dict(self.cfg["keyword_region"])
         timing = self.cfg["timing"]
-        need = self.cfg["detection"]["waiting_confirm_count"]
+        det = self.cfg["detection"]
+        need = det["waiting_confirm_count"]
         waiting = self.cfg["waiting_text"]
+        rules = get_rules(self.cfg)
+        retries_left = det["retry_count"]
         start = time.monotonic()
         count = 0
+        same = 0  # 同じキーワードを続けて読んだ回数
         last_text = ""
         while True:
             if time.monotonic() - start >= timing["waiting_timeout"]:
@@ -371,6 +382,23 @@ class Engine:
             text = self._read(region)
             if text:
                 last_text = text
+            if text and not parser.is_waiting(text, waiting):
+                matched = parser.match_rule(text, rules)
+                same = same + 1 if matched is not None and matched.id == rule.id else 0
+                if (
+                    retries_left > 0
+                    and same >= det["keyword_confirm_count"]
+                    and time.monotonic() - start >= timing["retry_delay"]
+                ):
+                    retries_left -= 1
+                    n = det["retry_count"] - retries_left
+                    self.log(f"キーワードが消えないため、もう一度実行します({n}/{det['retry_count']})")
+                    self._set_state(EXECUTING)
+                    self._execute(rule)
+                    self._set_state(WAIT_RETURN)
+                    start = time.monotonic()
+                    count = same = 0
+                    continue
             if parser.is_waiting(text, waiting):
                 count += 1
                 if count >= need:
